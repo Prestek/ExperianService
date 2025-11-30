@@ -20,8 +20,10 @@ public class CreditHistoryController {
     public ResponseEntity<ApiResponse<CreditHistory>> getCreditHistory(@PathVariable String userId) {
         return creditHistoryService.getCreditHistory(userId)
                 .map(history -> ResponseEntity.ok(new ApiResponse<>(true, "OK", history)))
-                .orElseGet(() -> ResponseEntity.status(404)
-                        .body(new ApiResponse<>(false, "Credit history not found for userId=" + userId, null)));
+                .orElseGet(() -> {
+                    CreditHistory defaultHistory = new CreditHistory(0.0, 0, 0, 0, 0, 0, true, 0, 0, 0);
+                    return ResponseEntity.ok(new ApiResponse<>(true, "Default history", defaultHistory));
+                });
     }
 
     @PostMapping("/{userId}")
