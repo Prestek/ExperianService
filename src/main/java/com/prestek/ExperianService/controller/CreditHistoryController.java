@@ -20,15 +20,20 @@ public class CreditHistoryController {
     public ResponseEntity<ApiResponse<CreditHistory>> getCreditHistory(@PathVariable String userId) {
         return creditHistoryService.getCreditHistory(userId)
                 .map(history -> ResponseEntity.ok(new ApiResponse<>(true, "OK", history)))
-                .orElseGet(() -> ResponseEntity.status(404)
-                        .body(new ApiResponse<>(false, "Credit history not found for userId=" + userId, null)));
+                .orElseGet(() -> {
+                    java.util.Random random = new java.util.Random();
+                    CreditHistory defaultHistory = new CreditHistory(
+                            random.nextDouble() * 850, random.nextInt(10), random.nextInt(5), random.nextInt(5),
+                            random.nextInt(5), random.nextInt(5), true, random.nextInt(5), random.nextInt(5),
+                            random.nextInt(5));
+                    return ResponseEntity.ok(new ApiResponse<>(true, "Random generated history", defaultHistory));
+                });
     }
 
     @PostMapping("/{userId}")
     public ResponseEntity<ApiResponse<CreditHistory>> upsertCreditHistory(
             @PathVariable String userId,
-            @RequestBody CreditHistory creditHistory
-    ) {
+            @RequestBody CreditHistory creditHistory) {
         creditHistoryService.saveCreditHistory(userId, creditHistory);
         return ResponseEntity.ok(new ApiResponse<>(true, "Saved", creditHistory));
     }
