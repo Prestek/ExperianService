@@ -13,8 +13,11 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.Optional;
 
-import static org.mockito.Mockito.when;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(CreditHistoryController.class)
@@ -40,8 +43,7 @@ class CreditHistoryControllerTest {
                 true,
                 0,
                 2,
-                1
-        );
+                1);
         when(creditHistoryService.getCreditHistory("user123")).thenReturn(Optional.of(payload));
 
         mockMvc.perform(get("/api/credit-history/{userId}", "user123").accept(MediaType.APPLICATION_JSON))
@@ -62,14 +64,73 @@ class CreditHistoryControllerTest {
     }
 
     @Test
-    @DisplayName("GET /api/credit-history/{userId} returns 404 with standardized ApiResponse when not found")
-    void getCreditHistory_notFound() throws Exception {
+    @DisplayName("GET /api/credit-history/{userId} returns 200 with random data when not found")
+    void getCreditHistory_notFound_returnsRandomData() throws Exception {
         when(creditHistoryService.getCreditHistory("unknown")).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/credit-history/{userId}", "unknown").accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isNotFound())
-                .andExpect(jsonPath("$.success").value(false))
-                .andExpect(jsonPath("$.message").exists())
-                .andExpect(jsonPath("$.data").doesNotExist());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Random generated history"))
+                .andExpect(jsonPath("$.data").exists())
+                .andExpect(jsonPath("$.data.score").exists());
+    }
+
+    @Test
+    @DisplayName("POST /api/credit-history/{userId} saves and returns the credit history")
+    void upsertCreditHistory_success() throws Exception {
+        String jsonContent = """
+                {
+                    "score": 7.5,
+                    "numberOfDelinquencies": 3,
+                    "numberOfChargedOffAccounts": 1,
+                    "numberOfRatingsCDE": 2,
+                    "numberOfSeizedAccounts": 0,
+                    "numberOfAccountsCancelledDueToMismanagement": 1,
+                    "fewerThanSixCreditBureauInquiries": true,
+                    "numberOfCurrentDelinquencies": 2,
+                    "numberOfDelinquenciesOver30Days": 1,
+                    "numberOfDelinquenciesOver60Days": 0
+                }
+                """;
+
+        mockMvc.perform(post("/api/credit-history/{userId}", "user123")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonContent))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Saved"))
+                .andExpect(jsonPath("$.data.score").value(7.5))
+                .andExpect(jsonPath("$.data.numberOfDelinquencies").value(3));
+
+        verify(creditHistoryService, times(1)).saveCreditHistory(eq("user123"), any(CreditHistory.class));
+    }
+
+    @Test
+    @DisplayName("POST /api/credit-history/{userId} handles update correctly")
+    void upsertCreditHistory_update() throws Exception {
+        String jsonContent = """
+                {
+                    "score": 9.0,
+                    "numberOfDelinquencies": 0,
+                    "numberOfChargedOffAccounts": 0,
+                    "numberOfRatingsCDE": 0,
+                    "numberOfSeizedAccounts": 0,
+                    "numberOfAccountsCancelledDueToMismanagement": 0,
+                    "fewerThanSixCreditBureauInquiries": true,
+                    "numberOfCurrentDelinquencies": 0,
+                    "numberOfDelinquenciesOver30Days": 0,
+                    "numberOfDelinquenciesOver60Days": 0
+                }
+                """;
+
+        mockMvc.perform(post("/api/credit-history/{userId}", "existingUser")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(jsonContent))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.score").value(9.0));
+
+        verify(creditHistoryService, times(1)).saveCreditHistory(eq("existingUser"), any(CreditHistory.class));
     }
 }
